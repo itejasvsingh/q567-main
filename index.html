@@ -728,11 +728,15 @@ const CDOMS=['Finance','HR','Marketing','IS','Ops','Strategy']; // core (non-int
 const DCOL={Finance:'#185fa5',HR:'#0f6e56',Marketing:'#854f0b',IS:'#534ab7',Ops:'#993c1d',Strategy:'#993556',Integrative:'#777'};
 const VC={Finance:'vF',HR:'vH',Marketing:'vM',IS:'vI',Ops:'vO',Strategy:'vS',Integrative:'vX'};
 
+function esc(v){return String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+function lsGet(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+
 let cQ='Q6';
 let sel={Q5:{},Q6:{},Q7:{}};
 
 try {
-  const savedSel = JSON.parse(localStorage.getItem('mbaplanner_selections'));
+  const savedSel = JSON.parse(lsGet('mbaplanner_selections'));
   if (savedSel) {
     ['Q5', 'Q6', 'Q7'].forEach(q => {
       if (savedSel[q]) {
@@ -756,7 +760,7 @@ let goalMajorDom='';
 let goalDualD1='';
 let goalDualD2='';
 let exportQ='Q5';
-let q6AlertShown=false;
+let q6AlertShown=!!lsGet('mbaplanner_q6_alert');
 
 function toggleGoal(g){
   goals[g]=!goals[g];
@@ -909,7 +913,7 @@ function toggleSubject(code){
     sel[q][code]=subj;
   }
   
-  localStorage.setItem('mbaplanner_selections', JSON.stringify(sel));
+  lsSet('mbaplanner_selections', JSON.stringify(sel));
   render();
 }
 
@@ -986,7 +990,7 @@ function renderGrid(){
   const filtered=subs.filter(s=>(fDom==='All'||s.v===fDom)&&matchesSearch(s,searchQuery));
 
   if(!filtered.length){
-    document.getElementById('sgrid').innerHTML=`<div class="search-noresults">No courses match "${searchQuery}"${fDom!=='All'?` in ${fDom}`:''}.</div>`;
+    document.getElementById('sgrid').innerHTML=`<div class="search-noresults">No courses match "${esc(searchQuery)}"${fDom!=='All'?` in ${fDom}`:''}.</div>`;
     return;
   }
 
@@ -1159,8 +1163,8 @@ function exportExcel(q){
 }
 
 const QDATES = {
-  Q5: { start: '2026-08-01', end: '2026-09-30' }, 
-  Q6: { start: '2026-10-01', end: '2026-11-30' }, 
+  Q5: { start: '2026-07-27', end: '2026-09-15' }, 
+  Q6: { start: '2026-09-24', end: '2026-11-13' }, 
   Q7: { start: '2027-01-01', end: '2027-02-28' }  
 };
 const ICS_TIME_MAP={
@@ -1172,6 +1176,7 @@ const ICS_TIME_MAP={
 };
 const ICS_DAY_IDX={Monday:1,Tuesday:2,Wednesday:3,Thursday:4,Friday:5}; 
 
+function icsEsc(v){return String(v==null?'':v).replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\r?\n/g,'\\n');}
 function icsStamp(d){ return d.toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
 
 function istToUTC(utcMidnight,hh,mm){
@@ -1207,9 +1212,9 @@ function buildICS(q){
       ics+=`DTSTART:${icsStamp(dtStart)}\r\n`;
       ics+=`DTEND:${icsStamp(dtEnd)}\r\n`;
       ics+=`RRULE:FREQ=WEEKLY;UNTIL=${untilStr}\r\n`;
-      ics+=`SUMMARY:${s.name}\r\n`;
+      ics+=`SUMMARY:${icsEsc(s.name)}\r\n`;
       if(s.room) ics+=`LOCATION:Room ${s.room}\r\n`;
-      ics+=`DESCRIPTION:Slot ${s.slot} - ${s.instructor}${s.room?' - Room '+s.room:''}\r\n`;
+      ics+=`DESCRIPTION:${icsEsc('Slot '+s.slot+' - '+s.instructor+(s.room?' - Room '+s.room:''))}\r\n`;
       ics+='END:VEVENT\r\n';
     });
   });
@@ -1304,7 +1309,7 @@ function decodeState(str){
         }
       });
     });
-    localStorage.setItem('mbaplanner_selections', JSON.stringify(sel));
+    lsSet('mbaplanner_selections', JSON.stringify(sel));
   }catch(e){console.warn('Could not decode shared state',e);}
 }
 
@@ -1401,7 +1406,7 @@ function sanitizeGroupCode(code){
   return code.trim().toLowerCase().replace(/[^a-z0-9-]/g,'-').replace(/-+/g,'-').slice(0,40);
 }
 function sanitizeKey(name){
-  return name.trim().replace(/[.#$[\]]/g, '_').slice(0, 30);
+  return name.trim().replace(/[.#$[\]\/]/g, '_').slice(0, 30);
 }
 
 function initFirebase(){
@@ -1484,7 +1489,7 @@ function cmpConnect(){
           sel[q]={};
           Object.entries(saved[q]||{}).forEach(([c,s])=>{ sel[q][c]=resolveSubj(q,s); });
         });
-        localStorage.setItem('mbaplanner_selections', JSON.stringify(sel));
+        lsSet('mbaplanner_selections', JSON.stringify(sel));
         render();
       }
       publishMyPlan(name);
@@ -1538,7 +1543,7 @@ function publishMyPlan(name){
   if(total===0){
     groupRef.child(key).remove();
     if(oldName && sanitizeKey(oldName)!==key) groupRef.child(sanitizeKey(oldName)).remove();
-    statusEl.innerHTML=`📍 Connected to <b>"${myGroupCode}"</b> as <b>${name}</b>. Pick some electives in My Planner so friends can see your schedule!`;
+    statusEl.innerHTML=`📍 Connected to <b>"${myGroupCode}"</b> as <b>${esc(name)}</b>. Pick some electives in My Planner so friends can see your schedule!`;
     statusEl.classList.add('connected');
     renderCompareView();
     return;
@@ -1547,7 +1552,7 @@ function publishMyPlan(name){
   const plan=getMyEncodedPlan();
   groupRef.child(key).set(plan).then(()=>{
     if(oldName && sanitizeKey(oldName)!==key) groupRef.child(sanitizeKey(oldName)).remove();
-    statusEl.innerHTML=`📍 Connected to <b>"${myGroupCode}"</b> as <b>${name}</b> — share the group code so friends can join.`;
+    statusEl.innerHTML=`📍 Connected to <b>"${myGroupCode}"</b> as <b>${esc(name)}</b> — share the group code so friends can join.`;
     statusEl.classList.add('connected');
   }).catch(e=>{
     statusEl.textContent='⚠️ Could not publish — check your internet connection.';
@@ -1638,10 +1643,10 @@ function renderCmpFriends(){
     const initial=(parts[k].label.trim().charAt(0)||'?').toUpperCase();
     const color=cmpColorFor(k);
     const isActive=compareFilter===k;
-    const keyEsc=k.replace(/'/g,"\\'");
+    const keyEsc=esc(k.replace(/\\/g,'\\\\').replace(/'/g,"\\'"));
     return `<div class="cmp-chip${isMe?' me':''}${isActive?' active':''}"${isMe?'':` onclick="cmpSetFilter('${keyEsc}')" style="cursor:pointer"`}>
       <div class="cmp-avatar" style="background:${color}">${initial}</div>
-      <span class="cmp-chip-name">${parts[k].label}${isMe?' (you)':''}</span>
+      <span class="cmp-chip-name">${esc(parts[k].label)}${isMe?' (you)':''}</span>
       <span class="cmp-chip-count">${count}/12</span>
       <span class="cmp-chip-x" onclick="event.stopPropagation();removeFromRoster('${keyEsc}')" title="Remove from group">✕</span>
     </div>`;
@@ -1660,7 +1665,7 @@ function renderCmpLegend(){
   const keys=Object.keys(parts);
   document.getElementById('cmp-legend').innerHTML=keys.map(k=>{
     const isMe=k===sanitizeKey(myName);
-    return `<div class="cmp-leg"><div class="cmp-leg-dot" style="background:${cmpColorFor(k)}"></div>${parts[k].label}${isMe?' (you)':''}</div>`;
+    return `<div class="cmp-leg"><div class="cmp-leg-dot" style="background:${cmpColorFor(k)}"></div>${esc(parts[k].label)}${isMe?' (you)':''}</div>`;
   }).join('');
 }
 
@@ -1700,7 +1705,7 @@ function renderCmpGrid(){
       const together = occ.length>=2 && codes.size===1;
       const clash = codes.size>=2;
       const cls='cmp-cell'+(together?' together':clash?' clash':'');
-      let inner=occ.map(o=>`<div class="cmp-pplrow"><div class="cmp-dot" style="background:${cmpColorFor(o.key)}"></div><div style="flex:1;min-width:0"><div class="cmp-classname">${o.subj.name}</div>${o.subj.room?`<span class="cmp-roomb">📍 ${o.subj.room}</span>`:''}</div></div>`).join('');
+      let inner=occ.map(o=>`<div class="cmp-pplrow"><div class="cmp-dot" style="background:${cmpColorFor(o.key)}"></div><div style="flex:1;min-width:0"><div class="cmp-classname">${esc(o.subj.name)}</div>${o.subj.room?`<span class="cmp-roomb">📍 ${esc(o.subj.room)}</span>`:''}</div></div>`).join('');
       if(together) inner+=`<div class="cmp-together-tag">🎉 together</div>`;
       else if(clash) inner+=`<div class="cmp-clash-tag">⚡ clash</div>`;
       h+=`<div class="${cls}">${inner}</div>`;
@@ -1720,7 +1725,7 @@ function renderCmpTogether(){
   const myKey=sanitizeKey(myName);
   const focusKey=keys.find(k=>k!==myKey);
   const headerLabel = (compareFilter!=='all' && focusKey)
-    ? `🎉 Classes with ${parts[focusKey].label} — ${q}`
+    ? `🎉 Classes with ${esc(parts[focusKey].label)} — ${q}`
     : `🎉 Classes together — ${q}`;
 
   const codeToInfo={};
@@ -1736,7 +1741,7 @@ function renderCmpTogether(){
   if(!entries.length){
     const noneMsg = keys.length<2
       ? 'Ask your friend to enter the same group code and tap Compare.'
-      : (compareFilter!=='all' && focusKey ? `No shared classes with ${parts[focusKey].label} in ${q} yet.` : `No shared classes in ${q} yet.`);
+      : (compareFilter!=='all' && focusKey ? `No shared classes with ${esc(parts[focusKey].label)} in ${q} yet.` : `No shared classes in ${q} yet.`);
     area.innerHTML=`<div class="sec-lbl">${headerLabel}</div><div class="cmp-empty">${noneMsg}</div>`;
     return;
   }
@@ -1744,13 +1749,13 @@ function renderCmpTogether(){
   entries.forEach(e=>{
     html+=`<div class="cmp-tcard">
       <div class="cmp-tcard-top">
-        <div class="cmp-tcard-name">${e.subj.name}</div>
+        <div class="cmp-tcard-name">${esc(e.subj.name)}</div>
         <div style="display:flex;gap:5px;flex-shrink:0">
-          <div class="cmp-tcard-slot">Slot ${e.subj.slot}</div>
-          ${e.subj.room?`<div class="roomb">📍 ${e.subj.room}</div>`:''}
+          <div class="cmp-tcard-slot">Slot ${esc(e.subj.slot)}</div>
+          ${e.subj.room?`<div class="roomb">📍 ${esc(e.subj.room)}</div>`:''}
         </div>
       </div>
-      <div class="cmp-tcard-ppl">${e.people.map(k=>`<span class="cmp-tperson"><span class="cmp-dot" style="background:${cmpColorFor(k)}"></span>${parts[k].label}${k===myKey?' (you)':''}</span>`).join('')}</div>
+      <div class="cmp-tcard-ppl">${e.people.map(k=>`<span class="cmp-tperson"><span class="cmp-dot" style="background:${cmpColorFor(k)}"></span>${esc(parts[k].label)}${k===myKey?' (you)':''}</span>`).join('')}</div>
     </div>`;
   });
   area.innerHTML=html;
@@ -1758,7 +1763,9 @@ function renderCmpTogether(){
 
 // ── ATTENDANCE LOGIC ─────────────────────────────────────────────────────────
 let attQ = 'Q6';
-let attData = JSON.parse(localStorage.getItem('mbaplanner_attendance')) || { Q5:{}, Q6:{}, Q7:{} };
+let attData = { Q5:{}, Q6:{}, Q7:{} };
+try { const savedAtt = JSON.parse(lsGet('mbaplanner_attendance')); if (savedAtt && typeof savedAtt === 'object') attData = savedAtt; } catch (e) {}
+['Q5','Q6','Q7'].forEach(q => { if (!attData[q]) attData[q] = {}; });
 
 function setAttQ(q) { 
   attQ = q; 
@@ -1786,7 +1793,7 @@ function updateAtt(code, type, delta) {
   
   current[type] = Math.max(0, current[type] + delta);
   
-  localStorage.setItem('mbaplanner_attendance', JSON.stringify(attData));
+  lsSet('mbaplanner_attendance', JSON.stringify(attData));
   renderAttendance();
   
   if(document.getElementById('att-sync-username').value.trim()) {
@@ -1800,7 +1807,7 @@ function renderAttendance() {
 
   let html = '';
   subjects.forEach(s => {
-    const data = attData[attQ][s.code] || { p: 0, a: 0 };
+    const data = (attData[attQ] && attData[attQ][s.code]) || { p: 0, a: 0 };
     const totalHeld = data.p + data.a;
     
     const pct = totalHeld === 0 ? 100 : Math.round((data.p / totalHeld) * 100);
@@ -1930,7 +1937,7 @@ function loadAttendanceCloud() {
             sel[q] = {};
             Object.entries(data.plan[q] || {}).forEach(([c, s]) => { sel[q][c] = resolveSubj(q, s); });
           });
-          localStorage.setItem('mbaplanner_selections', JSON.stringify(sel));
+          lsSet('mbaplanner_selections', JSON.stringify(sel));
         }
       } else {
         attData = data; 
@@ -1938,7 +1945,7 @@ function loadAttendanceCloud() {
 
       ['Q5','Q6','Q7'].forEach(q => { if(!attData[q]) attData[q] = {}; });
       
-      localStorage.setItem('mbaplanner_attendance', JSON.stringify(attData));
+      lsSet('mbaplanner_attendance', JSON.stringify(attData));
       
       render(); 
       renderAttendance();
@@ -1979,11 +1986,11 @@ function searchCohortAttendance() {
 
   if (!foundStudent) {
     container.style.display = 'block';
-    container.innerHTML = `<div class="cmp-empty" style="border-color: var(--bd-warn)">No student found matching "${query}". Check the Roll No or Name.</div>`;
+    container.innerHTML = `<div class="cmp-empty" style="border-color: var(--bd-warn)">No student found matching "${esc(query)}". Check the Roll No or Name.</div>`;
     return;
   }
 
-  let html = `<div style="font-size: 13px; font-weight: 700; color: var(--tx-info); margin-bottom: 8px;">👤 ${foundStudent.name} (${foundStudentId})</div>`;
+  let html = `<div style="font-size: 13px; font-weight: 700; color: var(--tx-info); margin-bottom: 8px;">👤 ${esc(foundStudent.name)} (${esc(foundStudentId)})</div>`;
   html += '<table style="width:100%; border-collapse: collapse; font-size: 12px; text-align: left; background: var(--bg); border: .5px solid var(--bd);">';
   html += '<thead><tr style="border-bottom: 1px solid var(--bd); background: var(--bg2);">';
   html += '<th style="padding: 8px 10px;">Subject</th>';

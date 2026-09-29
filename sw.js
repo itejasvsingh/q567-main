@@ -1,6 +1,4 @@
-// Bump this version string every time you deploy a new index.html so
-// returning visitors actually get the update instead of a stale cache.
-const CACHE_NAME = 'mba-planner-v1';
+const CACHE_NAME = 'mba-planner-v2';
 
 const SHELL_FILES = [
   './',
@@ -38,19 +36,21 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Network-first so deployed updates show up immediately; the cache is only
+  // a fallback for offline use.
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(res => {
-        // Cache a copy of any new same-origin asset we haven't seen before.
+    fetch(event.request).then(res => {
+      if (res && res.ok) {
         const copy = res.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(event.request, copy));
-        return res;
-      }).catch(() => {
-        // Offline and not cached: for a page navigation, fall back to the
-        // cached shell rather than showing the browser's default error page.
+      }
+      return res;
+    }).catch(() =>
+      caches.match(event.request).then(cached => {
+        if (cached) return cached;
         if (event.request.mode === 'navigate') return caches.match('./index.html');
-      });
-    })
+        return Response.error();
+      })
+    )
   );
 });
