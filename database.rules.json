@@ -1,0 +1,30 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "groups": {
+      "$code": {
+        "members": {
+          ".read": true,
+          "$name": {
+            ".write": true,
+            ".validate": "$name.length <= 30 && newData.hasChildren()",
+            "$q": {
+              ".validate": "$q === 'Q5' || $q === 'Q6' || $q === 'Q7'"
+            }
+          }
+        }
+      }
+    },
+    "attendance_trackers": {
+      "$name": {
+        ".read": true,
+        ".write": true,
+        ".validate": "$name.length <= 30 && newData.hasChildren(['counts'])",
+        "counts": { "$q": { ".validate": "$q === 'Q5' || $q === 'Q6' || $q === 'Q7'" } },
+        "plan": { "$q": { ".validate": "$q === 'Q5' || $q === 'Q6' || $q === 'Q7'" } },
+        "$other": { ".validate": false }
+      }
+    }
+  }
+}
